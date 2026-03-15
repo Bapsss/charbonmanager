@@ -13,18 +13,33 @@ service cloud.firestore {
     //   - username: string (required)
     //
     // Collection: stocks
-    // Document ID: {uid}
+    // Document ID: auto-generated
     // Fields:
     //   - uid: string (required)
-    //   - initialStock: number (required)
-    //   - updatedAt: timestamp (required)
+    //   - startDate: timestamp (required)
+    //   - initialBags: number (required)
+    //   - remainingBags: number (required)
+    //   - status: string (required, 'active' or 'completed')
+    //   - completedAt: timestamp (optional)
     //
     // Collection: sales
     // Document ID: auto-generated
     // Fields:
     //   - uid: string (required)
+    //   - stockId: string (required)
     //   - date: timestamp (required)
     //   - bagsSold: number (required)
+    //   - pricePerBag: number (required)
+    //   - total: number (required)
+    //
+    // Collection: pendingSales
+    // Document ID: auto-generated
+    // Fields:
+    //   - uid: string (required)
+    //   - stockId: string (required)
+    //   - clientName: string (required)
+    //   - date: timestamp (required)
+    //   - bagsTaken: number (required)
     //   - pricePerBag: number (required)
     //   - total: number (required)
     //
@@ -51,18 +66,32 @@ service cloud.firestore {
     }
 
     function isValidStock(data) {
-      return data.keys().hasAll(['uid', 'initialStock', 'updatedAt']) &&
+      return data.keys().hasAll(['uid', 'startDate', 'initialBags', 'remainingBags', 'status']) &&
              data.uid == request.auth.uid &&
-             data.initialStock is number &&
-             data.updatedAt is timestamp;
+             data.initialBags is number &&
+             data.remainingBags is number &&
+             data.status in ['active', 'completed'] &&
+             data.startDate is timestamp;
     }
 
     function isValidSale(data) {
-      return data.keys().hasAll(['uid', 'date', 'bagsSold', 'pricePerBag', 'total']) &&
+      return data.keys().hasAll(['uid', 'stockId', 'date', 'bagsSold', 'pricePerBag', 'total']) &&
              data.uid == request.auth.uid &&
+             data.stockId is string &&
              data.bagsSold is number &&
              data.pricePerBag is number &&
              data.total == data.bagsSold * data.pricePerBag &&
+             data.date is timestamp;
+    }
+
+    function isValidPendingSale(data) {
+      return data.keys().hasAll(['uid', 'stockId', 'clientName', 'date', 'bagsTaken', 'pricePerBag', 'total']) &&
+             data.uid == request.auth.uid &&
+             data.stockId is string &&
+             data.clientName is string && data.clientName.size() > 0 &&
+             data.bagsTaken is number &&
+             data.pricePerBag is number &&
+             data.total == data.bagsTaken * data.pricePerBag &&
              data.date is timestamp;
     }
 
@@ -72,15 +101,23 @@ service cloud.firestore {
       allow create, update: if isOwner(uid) && isValidUser(request.resource.data);
     }
 
-    match /stocks/{uid} {
-      allow read: if isOwner(uid);
-      allow create, update: if isOwner(uid) && isValidStock(request.resource.data);
+    match /stocks/{stockId} {
+      allow read: if isAuthenticated() && (resource == null || resource.data.uid == request.auth.uid);
+      allow create: if isAuthenticated() && request.resource.data.uid == request.auth.uid && isValidStock(request.resource.data);
+      allow update: if isDocOwner() && isValidStock(request.resource.data);
+      allow delete: if isDocOwner();
     }
 
     match /sales/{saleId} {
-      allow read: if isAuthenticated() && resource.data.uid == request.auth.uid;
+      allow read: if isAuthenticated() && (resource == null || resource.data.uid == request.auth.uid);
       allow create: if isAuthenticated() && request.resource.data.uid == request.auth.uid && isValidSale(request.resource.data);
       allow update, delete: if isDocOwner() && isValidSale(request.resource.data);
+    }
+
+    match /pendingSales/{pendingSaleId} {
+      allow read: if isAuthenticated() && (resource == null || resource.data.uid == request.auth.uid);
+      allow create: if isAuthenticated() && request.resource.data.uid == request.auth.uid && isValidPendingSale(request.resource.data);
+      allow update, delete: if isDocOwner() && isValidPendingSale(request.resource.data);
     }
   }
 }

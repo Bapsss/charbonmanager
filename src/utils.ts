@@ -27,3 +27,7 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
 export function formatCurrency(amount: number) {
   return new Intl.NumberFormat('mg-MG', { style: 'currency', currency: 'MGA', minimumFractionDigits: 0 }).format(amount);
 }
+
+export function formatDate(date: Date) {
+  return new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(date);
+}

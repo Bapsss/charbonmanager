@@ -18,7 +18,7 @@ import {
   orderBy
 } from 'firebase/firestore';
 import { auth, db } from './firebase';
-import { Sale, Stock, OperationType } from './types';
+import { Sale, Stock, PendingSale, OperationType } from './types';
 import { handleFirestoreError } from './utils';
 import { 
   LayoutDashboard, 
@@ -30,22 +30,26 @@ import {
   Flame,
   User as UserIcon,
   Lock,
-  AlertCircle
+  AlertCircle,
+  Clock
 } from 'lucide-react';
 import Dashboard from './components/Dashboard';
 import SalesForm from './components/SalesForm';
 import SalesHistory from './components/SalesHistory';
 import StockManager from './components/StockManager';
 import Stats from './components/Stats';
+import PendingSales from './components/PendingSales';
 
-type Page = 'dashboard' | 'new-sale' | 'history' | 'stock' | 'stats';
+type Page = 'dashboard' | 'new-sale' | 'history' | 'stock' | 'stats' | 'pending-sales';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState<Page>('dashboard');
   const [sales, setSales] = useState<Sale[]>([]);
+  const [pendingSales, setPendingSales] = useState<PendingSale[]>([]);
   const [stock, setStock] = useState<Stock | null>(null);
+  const [allStocks, setAllStocks] = useState<Stock[]>([]);
   
   // Login states
   const [username, setUsername] = useState('');
@@ -64,18 +68,27 @@ export default function App() {
   useEffect(() => {
     if (!user) {
       setSales([]);
+      setPendingSales([]);
       setStock(null);
+      setAllStocks([]);
       return;
     }
 
-    const stockRef = doc(db, 'stocks', user.uid);
-    const unsubStock = onSnapshot(stockRef, (docSnap) => {
-      if (docSnap.exists()) {
-        setStock(docSnap.data() as Stock);
-      } else {
-        setStock(null);
-      }
-    }, (err) => handleFirestoreError(err, OperationType.GET, `stocks/${user.uid}`));
+    const stocksQuery = query(
+      collection(db, 'stocks'),
+      where('uid', '==', user.uid),
+      orderBy('startDate', 'desc')
+    );
+    const unsubStock = onSnapshot(stocksQuery, (snapshot) => {
+      const stocksData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Stock[];
+      setAllStocks(stocksData);
+      
+      const active = stocksData.find(s => s.status === 'active');
+      setStock(active || null);
+    }, (err) => handleFirestoreError(err, OperationType.LIST, 'stocks'));
 
     const salesQuery = query(
       collection(db, 'sales'),
@@ -90,9 +103,23 @@ export default function App() {
       setSales(salesData);
     }, (err) => handleFirestoreError(err, OperationType.LIST, 'sales'));
 
+    const pendingSalesQuery = query(
+      collection(db, 'pendingSales'),
+      where('uid', '==', user.uid),
+      orderBy('date', 'desc')
+    );
+    const unsubPending = onSnapshot(pendingSalesQuery, (snapshot) => {
+      const pendingData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as PendingSale[];
+      setPendingSales(pendingData);
+    }, (err) => handleFirestoreError(err, OperationType.LIST, 'pendingSales'));
+
     return () => {
       unsubStock();
       unsubSales();
+      unsubPending();
     };
   }, [user]);
 
@@ -213,18 +240,20 @@ export default function App() {
 
   const renderPage = () => {
     switch (currentPage) {
-      case 'dashboard': return <Dashboard sales={sales} stock={stock} />;
+      case 'dashboard': return <Dashboard sales={sales} stock={stock} pendingSales={pendingSales} />;
       case 'new-sale': return <SalesForm stock={stock} sales={sales} onComplete={() => setCurrentPage('dashboard')} />;
       case 'history': return <SalesHistory sales={sales} />;
-      case 'stock': return <StockManager stock={stock} user={user} />;
+      case 'pending-sales': return <PendingSales pendingSales={pendingSales} user={user!} />;
+      case 'stock': return <StockManager stock={stock} allStocks={allStocks} sales={sales} user={user!} />;
       case 'stats': return <Stats sales={sales} stock={stock} />;
-      default: return <Dashboard sales={sales} stock={stock} />;
+      default: return <Dashboard sales={sales} stock={stock} pendingSales={pendingSales} />;
     }
   };
 
   const navItems = [
     { id: 'dashboard', label: 'Accueil', icon: LayoutDashboard },
     { id: 'new-sale', label: 'Vente', icon: PlusCircle },
+    { id: 'pending-sales', label: 'En attente', icon: Clock },
     { id: 'history', label: 'Historique', icon: History },
     { id: 'stock', label: 'Stock', icon: Package },
     { id: 'stats', label: 'Stats', icon: BarChart3 },

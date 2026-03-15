@@ -12,15 +12,18 @@
       "required": ["uid", "username"]
     },
     "Stock": {
-      "title": "Stock",
-      "description": "Stores stock configuration for a user.",
+      "title": "Stock Cycle",
+      "description": "Represents a selling period or stock batch.",
       "type": "object",
       "properties": {
         "uid": { "type": "string", "description": "Owner UID" },
-        "initialStock": { "type": "number", "description": "Starting number of bags" },
-        "updatedAt": { "type": "string", "format": "date-time" }
+        "startDate": { "type": "string", "format": "date-time" },
+        "initialBags": { "type": "number", "description": "Initial number of bags" },
+        "remainingBags": { "type": "number", "description": "Bags left to sell" },
+        "status": { "type": "string", "enum": ["active", "completed"] },
+        "completedAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["uid", "initialStock"]
+      "required": ["uid", "startDate", "initialBags", "remainingBags", "status"]
     },
     "Sale": {
       "title": "Sale",
@@ -28,12 +31,28 @@
       "type": "object",
       "properties": {
         "uid": { "type": "string", "description": "Owner UID" },
+        "stockId": { "type": "string", "description": "ID of the stock cycle" },
         "date": { "type": "string", "format": "date-time", "description": "Timestamp of sale" },
         "bagsSold": { "type": "number", "description": "Number of bags sold" },
         "pricePerBag": { "type": "number", "description": "Price per bag" },
         "total": { "type": "number", "description": "Total amount (bagsSold * pricePerBag)" }
       },
-      "required": ["uid", "date", "bagsSold", "pricePerBag", "total"]
+      "required": ["uid", "stockId", "date", "bagsSold", "pricePerBag", "total"]
+    },
+    "PendingSale": {
+      "title": "Pending Sale",
+      "description": "Represents charcoal taken but not yet paid.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Owner UID" },
+        "stockId": { "type": "string", "description": "ID of the stock cycle" },
+        "clientName": { "type": "string", "description": "Name of the person taking the charcoal" },
+        "date": { "type": "string", "format": "date-time" },
+        "bagsTaken": { "type": "number", "description": "Number of bags taken" },
+        "pricePerBag": { "type": "number", "description": "Agreed price per bag" },
+        "total": { "type": "number", "description": "Total amount to be paid" }
+      },
+      "required": ["uid", "stockId", "clientName", "date", "bagsTaken", "pricePerBag", "total"]
     }
   },
   "firestore": {
@@ -41,13 +60,17 @@
       "schema": "UserProfile",
       "description": "User profile documents"
     },
-    "/stocks/{uid}": {
+    "/stocks/{stockId}": {
       "schema": "Stock",
-      "description": "Stock configuration per user"
+      "description": "Stock cycles"
     },
     "/sales/{saleId}": {
       "schema": "Sale",
       "description": "Sales transactions"
+    },
+    "/pendingSales/{pendingSaleId}": {
+      "schema": "PendingSale",
+      "description": "Pending sales transactions"
     }
   }
 }

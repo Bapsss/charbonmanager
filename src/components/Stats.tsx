@@ -37,8 +37,12 @@ export default function Stats({ sales, stock }: StatsProps) {
     };
   });
 
-  const totalSacsVendus = sales.reduce((acc, s) => acc + s.bagsSold, 0);
-  const stockRestant = stock ? stock.initialStock - totalSacsVendus : 0;
+  const currentStockSales = stock ? sales.filter(s => s.stockId === stock.id) : [];
+  const totalSacsVendusStock = currentStockSales.reduce((acc, s) => acc + s.bagsSold, 0);
+  const revenuTotalStock = currentStockSales.reduce((acc, s) => acc + s.total, 0);
+  const prixMoyenPondere = totalSacsVendusStock > 0 ? revenuTotalStock / totalSacsVendusStock : 0;
+
+  const stockRestant = stock ? stock.remainingBags : 0;
 
   return (
     <div className="space-y-8">
@@ -92,27 +96,29 @@ export default function Stats({ sales, stock }: StatsProps) {
         </div>
       </div>
 
-      {/* Stock Evolution Mockup/Logic */}
+      {/* Stock Evolution Summary */}
       <div className="bg-stone-900 text-white p-8 rounded-3xl shadow-lg">
-        <h3 className="text-xl font-bold mb-6">Résumé Global</h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+        <h3 className="text-xl font-bold mb-6">Résumé du Cycle Actuel</h3>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-8">
           <div>
             <p className="text-stone-400 text-xs uppercase tracking-widest mb-1">Stock Initial</p>
-            <p className="text-2xl font-bold">{stock?.initialStock || 0}</p>
+            <p className="text-2xl font-bold">{stock?.initialBags || 0}</p>
           </div>
           <div>
             <p className="text-stone-400 text-xs uppercase tracking-widest mb-1">Total Vendu</p>
-            <p className="text-2xl font-bold">{totalSacsVendus}</p>
+            <p className="text-2xl font-bold text-orange-400">{totalSacsVendusStock}</p>
+          </div>
+          <div>
+            <p className="text-stone-400 text-xs uppercase tracking-widest mb-1">Revenu Total</p>
+            <p className="text-2xl font-bold text-emerald-400">{formatCurrency(revenuTotalStock)}</p>
+          </div>
+          <div>
+            <p className="text-stone-400 text-xs uppercase tracking-widest mb-1">Prix Moyen / Sac</p>
+            <p className="text-2xl font-bold text-blue-400">{formatCurrency(prixMoyenPondere)}</p>
           </div>
           <div>
             <p className="text-stone-400 text-xs uppercase tracking-widest mb-1">Stock Restant</p>
-            <p className="text-2xl font-bold text-orange-400">{stockRestant}</p>
-          </div>
-          <div>
-            <p className="text-stone-400 text-xs uppercase tracking-widest mb-1">Taux d'écoulement</p>
-            <p className="text-2xl font-bold">
-              {stock?.initialStock ? ((totalSacsVendus / stock.initialStock) * 100).toFixed(1) : 0}%
-            </p>
+            <p className="text-2xl font-bold">{stockRestant}</p>
           </div>
         </div>
       </div>

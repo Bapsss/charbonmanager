@@ -6,16 +6,32 @@ export interface UserProfile {
 }
 
 export interface Stock {
+  id?: string;
   uid: string;
-  initialStock: number;
-  updatedAt: Timestamp;
+  startDate: Timestamp;
+  initialBags: number;
+  remainingBags: number;
+  status: 'active' | 'completed';
+  completedAt?: Timestamp;
 }
 
 export interface Sale {
   id?: string;
   uid: string;
+  stockId: string;
   date: Timestamp;
   bagsSold: number;
+  pricePerBag: number;
+  total: number;
+}
+
+export interface PendingSale {
+  id?: string;
+  uid: string;
+  stockId: string;
+  clientName: string;
+  date: Timestamp;
+  bagsTaken: number;
   pricePerBag: number;
   total: number;
 }

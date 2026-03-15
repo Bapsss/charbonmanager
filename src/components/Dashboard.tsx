@@ -1,23 +1,25 @@
 import React from 'react';
-import { Sale, Stock } from '../types';
+import { Sale, Stock, PendingSale } from '../types';
 import { formatCurrency } from '../utils';
-import { Package, ShoppingBag, TrendingUp, AlertTriangle, Clock } from 'lucide-react';
+import { Package, ShoppingBag, TrendingUp, AlertTriangle, Clock, Users } from 'lucide-react';
 import { isToday, differenceInDays } from 'date-fns';
 
 interface DashboardProps {
   sales: Sale[];
   stock: Stock | null;
+  pendingSales: PendingSale[];
 }
 
-export default function Dashboard({ sales, stock }: DashboardProps) {
-  const totalSacsVendus = sales.reduce((acc, s) => acc + s.bagsSold, 0);
-  const stockRestant = stock ? stock.initialStock - totalSacsVendus : 0;
+export default function Dashboard({ sales, stock, pendingSales }: DashboardProps) {
+  const stockRestant = stock ? stock.remainingBags : 0;
+  const totalSacsVendus = stock ? stock.initialBags - stock.remainingBags : 0;
   
   const salesToday = sales.filter(s => isToday(s.date.toDate()));
   const sacsVendusAujourdhui = salesToday.reduce((acc, s) => acc + s.bagsSold, 0);
   const revenuAujourdhui = salesToday.reduce((acc, s) => acc + s.total, 0);
   
   const revenuTotal = sales.reduce((acc, s) => acc + s.total, 0);
+  const totalPending = pendingSales.reduce((acc, s) => acc + s.total, 0);
 
   // Stats for predictions
   const daysActive = sales.length > 0 ? differenceInDays(new Date(), sales[sales.length - 1].date.toDate()) + 1 : 0;
@@ -75,11 +77,30 @@ export default function Dashboard({ sales, stock }: DashboardProps) {
         </div>
       </div>
 
+      {/* Pending Payments Alert */}
+      {pendingSales.length > 0 && (
+        <div className="bg-orange-600 text-white p-6 rounded-3xl shadow-lg flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center">
+              <Users className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h3 className="font-bold text-lg">Paiements en attente</h3>
+              <p className="text-orange-100 text-sm">{pendingSales.length} personnes vous doivent de l'argent.</p>
+            </div>
+          </div>
+          <div className="text-right">
+            <p className="text-orange-200 text-xs font-bold uppercase tracking-widest">Total à recouvrer</p>
+            <p className="text-3xl font-bold">{formatCurrency(totalPending)}</p>
+          </div>
+        </div>
+      )}
+
       {/* Secondary Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="bg-stone-900 text-white p-8 rounded-3xl shadow-lg relative overflow-hidden">
           <div className="relative z-10">
-            <p className="text-stone-400 text-sm font-medium mb-1">Revenu Total</p>
+            <p className="text-stone-400 text-sm font-medium mb-1">Revenu Total encaissé</p>
             <h3 className="text-3xl font-bold mb-6">{formatCurrency(revenuTotal)}</h3>
             <div className="flex items-center gap-4">
               <div className="flex-1">
