@@ -1,0 +1,5 @@
+{
+  "name": "CharbonManager",
+  "description": "Application de gestion de commerce de charbon : ventes, stock et statistiques.",
+  "requestFramePermissions": []
+}

@@ -1,0 +1,86 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {uid}
+    // Fields:
+    //   - uid: string (required)
+    //   - username: string (required)
+    //
+    // Collection: stocks
+    // Document ID: {uid}
+    // Fields:
+    //   - uid: string (required)
+    //   - initialStock: number (required)
+    //   - updatedAt: timestamp (required)
+    //
+    // Collection: sales
+    // Document ID: auto-generated
+    // Fields:
+    //   - uid: string (required)
+    //   - date: timestamp (required)
+    //   - bagsSold: number (required)
+    //   - pricePerBag: number (required)
+    //   - total: number (required)
+    //
+    // ===============================================================
+
+    // Helper Functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isDocOwner() {
+      return isAuthenticated() && request.auth.uid == resource.data.uid;
+    }
+
+    // Domain Validators
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'username']) &&
+             data.uid == request.auth.uid &&
+             data.username is string && data.username.size() > 0;
+    }
+
+    function isValidStock(data) {
+      return data.keys().hasAll(['uid', 'initialStock', 'updatedAt']) &&
+             data.uid == request.auth.uid &&
+             data.initialStock is number &&
+             data.updatedAt is timestamp;
+    }
+
+    function isValidSale(data) {
+      return data.keys().hasAll(['uid', 'date', 'bagsSold', 'pricePerBag', 'total']) &&
+             data.uid == request.auth.uid &&
+             data.bagsSold is number &&
+             data.pricePerBag is number &&
+             data.total == data.bagsSold * data.pricePerBag &&
+             data.date is timestamp;
+    }
+
+    // Rules
+    match /users/{uid} {
+      allow read: if isOwner(uid);
+      allow create, update: if isOwner(uid) && isValidUser(request.resource.data);
+    }
+
+    match /stocks/{uid} {
+      allow read: if isOwner(uid);
+      allow create, update: if isOwner(uid) && isValidStock(request.resource.data);
+    }
+
+    match /sales/{saleId} {
+      allow read: if isAuthenticated() && resource.data.uid == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.uid == request.auth.uid && isValidSale(request.resource.data);
+      allow update, delete: if isDocOwner() && isValidSale(request.resource.data);
+    }
+  }
+}

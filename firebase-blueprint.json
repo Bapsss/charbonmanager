@@ -1,0 +1,53 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "Stores user credentials and profile.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Internal UID" },
+        "username": { "type": "string", "description": "User ID chosen by user" },
+        "password": { "type": "string", "description": "Hashed or simple password (for display/check)" }
+      },
+      "required": ["uid", "username"]
+    },
+    "Stock": {
+      "title": "Stock",
+      "description": "Stores stock configuration for a user.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Owner UID" },
+        "initialStock": { "type": "number", "description": "Starting number of bags" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "initialStock"]
+    },
+    "Sale": {
+      "title": "Sale",
+      "description": "Represents a single charcoal sale transaction.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Owner UID" },
+        "date": { "type": "string", "format": "date-time", "description": "Timestamp of sale" },
+        "bagsSold": { "type": "number", "description": "Number of bags sold" },
+        "pricePerBag": { "type": "number", "description": "Price per bag" },
+        "total": { "type": "number", "description": "Total amount (bagsSold * pricePerBag)" }
+      },
+      "required": ["uid", "date", "bagsSold", "pricePerBag", "total"]
+    }
+  },
+  "firestore": {
+    "/users/{uid}": {
+      "schema": "UserProfile",
+      "description": "User profile documents"
+    },
+    "/stocks/{uid}": {
+      "schema": "Stock",
+      "description": "Stock configuration per user"
+    },
+    "/sales/{saleId}": {
+      "schema": "Sale",
+      "description": "Sales transactions"
+    }
+  }
+}
