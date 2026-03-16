@@ -11,6 +11,9 @@ export interface Stock {
   startDate: Timestamp;
   initialBags: number;
   remainingBags: number;
+  initialExpenses: number;
+  transportPerBag: number;
+  standPerDay: number;
   status: 'active' | 'completed';
   completedAt?: Timestamp;
 }
@@ -34,6 +37,8 @@ export interface PendingSale {
   bagsTaken: number;
   pricePerBag: number;
   total: number;
+  amountPaid: number;
+  status: 'pending' | 'partially_paid' | 'paid';
 }
 
 export enum OperationType {

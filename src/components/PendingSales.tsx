@@ -15,28 +15,44 @@ export default function PendingSales({ pendingSales, user }: PendingSalesProps) 
   const [loading, setLoading] = useState<string | null>(null);
   const [confirmingPayment, setConfirmingPayment] = useState<PendingSale | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
+  const [bagsToPay, setBagsToPay] = useState<string>('');
 
-  const handlePaymentReceived = async (sale: PendingSale) => {
+  const handlePaymentReceived = async (sale: PendingSale, bags: number) => {
+    if (bags <= 0 || bags > sale.bagsTaken) return;
+
     setLoading(sale.id!);
     try {
+      const totalPaid = bags * sale.pricePerBag;
+
       // 1. Add to normal sales
       await addDoc(collection(db, 'sales'), {
         uid: user.uid,
         stockId: sale.stockId,
         date: Timestamp.now(),
-        bagsSold: sale.bagsTaken,
+        bagsSold: bags,
         pricePerBag: sale.pricePerBag,
-        total: sale.total
+        total: totalPaid
       });
 
       // 2. Update stock
       await updateDoc(doc(db, 'stocks', sale.stockId), {
-        remainingBags: increment(-sale.bagsTaken)
+        remainingBags: increment(-bags)
       });
 
-      // 3. Delete from pending sales
-      await deleteDoc(doc(db, 'pendingSales', sale.id!));
+      // 3. Update or delete from pending sales
+      if (bags === sale.bagsTaken) {
+        await deleteDoc(doc(db, 'pendingSales', sale.id!));
+      } else {
+        const newBagsTaken = sale.bagsTaken - bags;
+        await updateDoc(doc(db, 'pendingSales', sale.id!), {
+          bagsTaken: newBagsTaken,
+          total: newBagsTaken * sale.pricePerBag,
+          amountPaid: increment(totalPaid),
+          status: 'partially_paid'
+        });
+      }
       setConfirmingPayment(null);
+      setBagsToPay('');
     } catch (err) {
       handleFirestoreError(err, OperationType.WRITE, `pendingSales/${sale.id}`);
     } finally {
@@ -131,22 +147,67 @@ export default function PendingSales({ pendingSales, user }: PendingSalesProps) 
               <CheckCircle2 className="w-8 h-8 text-emerald-600" />
             </div>
             <div className="text-center space-y-2">
-              <h3 className="text-xl font-bold text-stone-900">Confirmer le paiement</h3>
-              <p className="text-stone-500">
-                Avez-vous bien reçu <span className="font-bold text-stone-900">{formatCurrency(confirmingPayment.total)}</span> de la part de <span className="font-bold text-stone-900">{confirmingPayment.clientName}</span> ?
+              <h3 className="text-xl font-bold text-stone-900">Enregistrer un paiement</h3>
+              <p className="text-stone-500 text-sm">
+                Combien de sacs <span className="font-bold text-stone-900">{confirmingPayment.clientName}</span> règle-t-il aujourd'hui ?
               </p>
             </div>
+            
+              <div className="space-y-4">
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-stone-500">Sacs restants à payer :</span>
+                  <span className="font-bold text-stone-900">{confirmingPayment.bagsTaken} sacs</span>
+                </div>
+                <div className="flex gap-2">
+                  {[1, 5, confirmingPayment.bagsTaken].map(n => (
+                    <button
+                      key={n}
+                      onClick={() => setBagsToPay(n.toString())}
+                      className="flex-1 py-2 bg-stone-100 hover:bg-stone-200 rounded-lg text-xs font-bold text-stone-600 transition-all"
+                    >
+                      {n === confirmingPayment.bagsTaken ? 'Tout' : `+${n}`}
+                    </button>
+                  ))}
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-stone-400 uppercase">Nombre de sacs payés</label>
+                  <input
+                    type="number"
+                    value={bagsToPay}
+                    onChange={(e) => setBagsToPay(e.target.value)}
+                    placeholder={`Ex: 3`}
+                    className="w-full px-4 py-3 rounded-xl border border-stone-200 focus:ring-2 focus:ring-emerald-500 outline-none text-center font-bold text-lg"
+                  />
+                </div>
+                {bagsToPay && parseInt(bagsToPay) > 0 && (
+                  <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-100 space-y-1">
+                    <p className="text-xs text-emerald-600 font-bold uppercase text-center">Montant à recevoir</p>
+                    <p className="text-2xl font-bold text-emerald-700 text-center">
+                      {formatCurrency(parseInt(bagsToPay) * confirmingPayment.pricePerBag)}
+                    </p>
+                    {parseInt(bagsToPay) < confirmingPayment.bagsTaken && (
+                      <p className="text-[10px] text-emerald-600 text-center italic mt-1">
+                        Reste après paiement : {confirmingPayment.bagsTaken - parseInt(bagsToPay)} sacs
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+
             <div className="flex gap-3">
               <button
-                onClick={() => setConfirmingPayment(null)}
+                onClick={() => {
+                  setConfirmingPayment(null);
+                  setBagsToPay('');
+                }}
                 className="flex-1 py-3 rounded-xl font-bold text-stone-500 hover:bg-stone-100 transition-all"
               >
                 Annuler
               </button>
               <button
-                onClick={() => handlePaymentReceived(confirmingPayment)}
-                disabled={!!loading}
-                className="flex-1 py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100"
+                onClick={() => handlePaymentReceived(confirmingPayment, parseInt(bagsToPay))}
+                disabled={!!loading || !bagsToPay || parseInt(bagsToPay) <= 0 || parseInt(bagsToPay) > confirmingPayment.bagsTaken}
+                className="flex-1 py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100 disabled:opacity-50"
               >
                 {loading ? '...' : 'Confirmer'}
               </button>

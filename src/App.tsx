@@ -242,7 +242,7 @@ export default function App() {
     switch (currentPage) {
       case 'dashboard': return <Dashboard sales={sales} stock={stock} pendingSales={pendingSales} />;
       case 'new-sale': return <SalesForm stock={stock} sales={sales} onComplete={() => setCurrentPage('dashboard')} />;
-      case 'history': return <SalesHistory sales={sales} />;
+      case 'history': return <SalesHistory sales={sales} allStocks={allStocks} />;
       case 'pending-sales': return <PendingSales pendingSales={pendingSales} user={user!} />;
       case 'stock': return <StockManager stock={stock} allStocks={allStocks} sales={sales} user={user!} />;
       case 'stats': return <Stats sales={sales} stock={stock} />;

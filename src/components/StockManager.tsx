@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { collection, addDoc, doc, updateDoc, Timestamp } from 'firebase/firestore';
+import { collection, addDoc, doc, updateDoc, Timestamp, deleteDoc, query, where, getDocs, writeBatch } from 'firebase/firestore';
 import { db } from '../firebase';
-import { Stock, Sale, OperationType } from '../types';
+import { Stock, Sale, OperationType, PendingSale } from '../types';
 import { handleFirestoreError, formatDate, formatCurrency } from '../utils';
 import { User } from 'firebase/auth';
-import { Package, Plus, Calendar, History, ArrowRight, AlertTriangle, TrendingUp } from 'lucide-react';
+import { Package, Plus, Calendar, History, ArrowRight, AlertTriangle, TrendingUp, Trash2, Check, X } from 'lucide-react';
+import { differenceInDays } from 'date-fns';
 
 interface StockManagerProps {
   stock: Stock | null;
@@ -15,13 +16,48 @@ interface StockManagerProps {
 
 export default function StockManager({ stock, allStocks, sales, user }: StockManagerProps) {
   const [initialBags, setInitialBags] = useState('');
+  const [initialExpenses, setInitialExpenses] = useState('');
+  const [transportPerBag, setTransportPerBag] = useState('');
+  const [standPerDay, setStandPerDay] = useState('');
   const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
   const [loading, setLoading] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [deletingStockId, setDeletingStockId] = useState<string | null>(null);
+
+  const handleDeleteStock = async (stockId: string) => {
+    setLoading(true);
+    try {
+      const batch = writeBatch(db);
+
+      // 1. Delete sales associated with this stock
+      const salesQuery = query(collection(db, 'sales'), where('stockId', '==', stockId));
+      const salesSnap = await getDocs(salesQuery);
+      salesSnap.forEach((d) => batch.delete(d.ref));
+
+      // 2. Delete pending sales associated with this stock
+      const pendingQuery = query(collection(db, 'pendingSales'), where('stockId', '==', stockId));
+      const pendingSnap = await getDocs(pendingQuery);
+      pendingSnap.forEach((d) => batch.delete(d.ref));
+
+      // 3. Delete the stock itself
+      batch.delete(doc(db, 'stocks', stockId));
+
+      await batch.commit();
+      setDeletingStockId(null);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, `stocks/${stockId}`);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleCreateStock = async (e: React.FormEvent) => {
     e.preventDefault();
     const bags = parseInt(initialBags);
+    const expenses = parseFloat(initialExpenses) || 0;
+    const transport = parseFloat(transportPerBag) || 0;
+    const stand = parseFloat(standPerDay) || 0;
+
     if (isNaN(bags) || bags <= 0) return;
 
     setLoading(true);
@@ -30,10 +66,16 @@ export default function StockManager({ stock, allStocks, sales, user }: StockMan
         uid: user.uid,
         initialBags: bags,
         remainingBags: bags,
+        initialExpenses: expenses,
+        transportPerBag: transport,
+        standPerDay: stand,
         startDate: Timestamp.fromDate(new Date(startDate)),
         status: 'active'
       });
       setInitialBags('');
+      setInitialExpenses('');
+      setTransportPerBag('');
+      setStandPerDay('');
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, 'stocks');
     } finally {
@@ -140,8 +182,8 @@ export default function StockManager({ stock, allStocks, sales, user }: StockMan
                 <p className="text-sm text-stone-500">Ajoutez un nouveau stock pour commencer à enregistrer des ventes.</p>
               </div>
               
-              <form onSubmit={handleCreateStock} className="space-y-4 text-left">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <form onSubmit={handleCreateStock} className="space-y-6 text-left">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-1">
                     <label className="text-xs font-bold text-stone-400 uppercase">Nombre de sacs</label>
                     <input
@@ -163,11 +205,44 @@ export default function StockManager({ stock, allStocks, sales, user }: StockMan
                       required
                     />
                   </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-stone-400 uppercase">Dépenses initiales (Ar)</label>
+                    <input
+                      type="number"
+                      value={initialExpenses}
+                      onChange={(e) => setInitialExpenses(e.target.value)}
+                      placeholder="Coût charbon, patentes..."
+                      className="w-full px-4 py-3 rounded-xl border border-stone-200 focus:ring-2 focus:ring-orange-500 outline-none"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-stone-400 uppercase">Transport par sac (Ar)</label>
+                    <input
+                      type="number"
+                      value={transportPerBag}
+                      onChange={(e) => setTransportPerBag(e.target.value)}
+                      placeholder="Ex: 500"
+                      className="w-full px-4 py-3 rounded-xl border border-stone-200 focus:ring-2 focus:ring-orange-500 outline-none"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-1 md:col-span-2">
+                    <label className="text-xs font-bold text-stone-400 uppercase">Location stand par jour (Ar)</label>
+                    <input
+                      type="number"
+                      value={standPerDay}
+                      onChange={(e) => setStandPerDay(e.target.value)}
+                      placeholder="Ex: 2000"
+                      className="w-full px-4 py-3 rounded-xl border border-stone-200 focus:ring-2 focus:ring-orange-500 outline-none"
+                      required
+                    />
+                  </div>
                 </div>
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full bg-orange-600 text-white py-4 rounded-xl font-bold hover:bg-orange-700 transition-all"
+                  className="w-full bg-orange-600 text-white py-4 rounded-xl font-bold hover:bg-orange-700 transition-all shadow-lg shadow-orange-100"
                 >
                   Démarrer un nouveau stock
                 </button>
@@ -188,31 +263,69 @@ export default function StockManager({ stock, allStocks, sales, user }: StockMan
           {allStocks.filter(s => s.status === 'completed').length === 0 ? (
             <p className="text-stone-400 text-sm italic">Aucun stock terminé pour le moment.</p>
           ) : (
-            allStocks.filter(s => s.status === 'completed').map((s) => (
-              <div key={s.id} className="bg-white p-5 rounded-2xl border border-stone-200 flex flex-col md:flex-row justify-between gap-4">
-                <div className="space-y-1">
-                  <div className="text-stone-900 font-bold">Stock du {formatDate(s.startDate.toDate())}</div>
-                  <div className="text-xs text-stone-500">
-                    Terminé le {s.completedAt ? formatDate(s.completedAt.toDate()) : 'N/A'}
+            allStocks.filter(s => s.status === 'completed').map((s) => {
+              const revenue = getStockRevenue(s.id!);
+              const days = s.completedAt ? differenceInDays(s.completedAt.toDate(), s.startDate.toDate()) + 1 : 0;
+              const expenses = s.initialExpenses + (s.transportPerBag * s.initialBags) + (s.standPerDay * days);
+              const profit = revenue - expenses;
+
+              return (
+                <div key={s.id} className="bg-white p-5 rounded-2xl border border-stone-200 flex flex-col md:flex-row justify-between gap-4 relative group">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <div className="text-stone-900 font-bold">Stock du {formatDate(s.startDate.toDate())}</div>
+                      {deletingStockId === s.id ? (
+                        <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-2">
+                          <span className="text-[10px] font-bold text-red-500 uppercase">Confirmer ?</span>
+                          <button
+                            onClick={() => handleDeleteStock(s.id!)}
+                            disabled={loading}
+                            className="p-1 text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                          >
+                            <Check className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => setDeletingStockId(null)}
+                            disabled={loading}
+                            className="p-1 text-stone-400 hover:bg-stone-100 rounded-lg transition-all"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setDeletingStockId(s.id!)}
+                          className="p-1 text-stone-400 hover:text-red-500 transition-all"
+                          title="Supprimer ce stock et ses données"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                    <div className="text-xs text-stone-500">
+                      Terminé le {s.completedAt ? formatDate(s.completedAt.toDate()) : 'N/A'}
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 lg:flex gap-4 lg:gap-8">
+                    <div className="text-center md:text-left">
+                      <div className="text-xs text-stone-400 font-bold uppercase">Vendus</div>
+                      <div className="font-bold text-stone-900">{s.initialBags - s.remainingBags} sacs</div>
+                    </div>
+                    <div className="text-center md:text-left">
+                      <div className="text-xs text-stone-400 font-bold uppercase">Revenu</div>
+                      <div className="font-bold text-emerald-600">{formatCurrency(revenue)}</div>
+                    </div>
+                    <div className="text-center md:text-left">
+                      <div className="text-xs text-stone-400 font-bold uppercase">Bénéfice Réel</div>
+                      <div className={`font-bold ${profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                        {formatCurrency(profit)}
+                      </div>
+                    </div>
                   </div>
                 </div>
-                
-                <div className="grid grid-cols-2 md:flex gap-4 md:gap-8">
-                  <div className="text-center md:text-left">
-                    <div className="text-xs text-stone-400 font-bold uppercase">Vendus</div>
-                    <div className="font-bold text-stone-900">{s.initialBags - s.remainingBags} sacs</div>
-                  </div>
-                  <div className="text-center md:text-left">
-                    <div className="text-xs text-stone-400 font-bold uppercase">Restants</div>
-                    <div className="font-bold text-stone-900">{s.remainingBags} sacs</div>
-                  </div>
-                  <div className="text-center md:text-left">
-                    <div className="text-xs text-stone-400 font-bold uppercase">Revenu Total</div>
-                    <div className="font-bold text-emerald-600">{formatCurrency(getStockRevenue(s.id!))}</div>
-                  </div>
-                </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       </section>

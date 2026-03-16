@@ -79,8 +79,19 @@ export default function SalesForm({ stock, sales, onComplete }: SalesFormProps) 
 
       setSuccess(true);
       setTimeout(() => onComplete(), 1500);
-    } catch (err) {
-      handleFirestoreError(err, OperationType.CREATE, isPending ? 'pendingSales' : 'sales');
+    } catch (err: any) {
+      console.error('Firestore error:', err);
+      if (err.message?.includes('permission-denied') || err.message?.includes('insufficient permissions')) {
+        setError('Erreur de permission : ce stock ne vous appartient pas.');
+      } else {
+        setError('Une erreur est survenue lors de l\'enregistrement. Veuillez réessayer.');
+      }
+      // Still call handleFirestoreError for logging/monitoring
+      try {
+        handleFirestoreError(err, OperationType.CREATE, isPending ? 'pendingSales' : 'sales');
+      } catch (e) {
+        // Ignore the re-thrown error from handleFirestoreError
+      }
     } finally {
       setLoading(false);
     }
@@ -175,6 +186,18 @@ export default function SalesForm({ stock, sales, onComplete }: SalesFormProps) 
               <ShoppingBag className="w-4 h-4" />
               {isPending ? 'Nombre de sacs pris' : 'Nombre de sacs vendus'}
             </label>
+            <div className="flex gap-2 mb-2">
+              {[1, 5, 10].map(n => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => setBagsSold(n.toString())}
+                  className="flex-1 py-2 bg-stone-100 hover:bg-stone-200 rounded-lg text-xs font-bold text-stone-600 transition-all"
+                >
+                  +{n}
+                </button>
+              ))}
+            </div>
             <input
               type="number"
               value={bagsSold}
@@ -218,11 +241,16 @@ export default function SalesForm({ stock, sales, onComplete }: SalesFormProps) 
 
           <button
             type="submit"
-            disabled={loading || stock.remainingBags === 0}
+            disabled={loading || (!isPending && stock.remainingBags === 0)}
             className="w-full bg-orange-600 text-white py-4 rounded-2xl font-bold hover:bg-orange-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-orange-200"
           >
             {loading ? 'Enregistrement...' : 'Ajouter la vente'}
           </button>
+          {!isPending && stock.remainingBags === 0 && (
+            <p className="text-center text-xs text-red-500 font-medium">
+              Votre stock est épuisé. Enregistrez un nouveau stock pour continuer les ventes directes.
+            </p>
+          )}
         </form>
       </div>
     </div>

@@ -20,10 +20,13 @@
         "startDate": { "type": "string", "format": "date-time" },
         "initialBags": { "type": "number", "description": "Initial number of bags" },
         "remainingBags": { "type": "number", "description": "Bags left to sell" },
+        "initialExpenses": { "type": "number", "description": "Coal cost, patents, etc." },
+        "transportPerBag": { "type": "number", "description": "Transport cost per bag" },
+        "standPerDay": { "type": "number", "description": "Stand rental per day" },
         "status": { "type": "string", "enum": ["active", "completed"] },
         "completedAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["uid", "startDate", "initialBags", "remainingBags", "status"]
+      "required": ["uid", "startDate", "initialBags", "remainingBags", "initialExpenses", "transportPerBag", "standPerDay", "status"]
     },
     "Sale": {
       "title": "Sale",
@@ -50,9 +53,11 @@
         "date": { "type": "string", "format": "date-time" },
         "bagsTaken": { "type": "number", "description": "Number of bags taken" },
         "pricePerBag": { "type": "number", "description": "Agreed price per bag" },
-        "total": { "type": "number", "description": "Total amount to be paid" }
+        "total": { "type": "number", "description": "Total amount to be paid" },
+        "amountPaid": { "type": "number", "description": "Amount already paid" },
+        "status": { "type": "string", "enum": ["pending", "partially_paid", "paid"] }
       },
-      "required": ["uid", "stockId", "clientName", "date", "bagsTaken", "pricePerBag", "total"]
+      "required": ["uid", "stockId", "clientName", "date", "bagsTaken", "pricePerBag", "total", "amountPaid", "status"]
     }
   },
   "firestore": {
